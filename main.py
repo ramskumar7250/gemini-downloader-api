@@ -18,7 +18,7 @@ class VideoRequest(BaseModel):
     url: str
 
 RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
-RAPIDAPI_HOST = "rumble-video-downloader5.p.rapidapi.com"
+RAPIDAPI_HOST = "rumble-video-downloader2.p.rapidapi.com"
 
 @app.post("/get-video/")
 async def fetch_rumble_download_links(data: VideoRequest):
