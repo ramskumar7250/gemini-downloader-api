@@ -5,7 +5,6 @@ import requests
 
 app = FastAPI()
 
-# CORS इनेबल करना ताकि तुम्हारी Framer वेबसाइट बिना किसी एरर के बात कर सके
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +16,6 @@ app.add_middleware(
 class MediaRequest(BaseModel):
     url: str
 
-# तुम्हारी लाइव RapidAPI Key सीधे कोड में फिट कर दी है
 RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
 
 @app.post("/get-video/")
@@ -27,8 +25,8 @@ async def remove_gemini_watermark(data: MediaRequest):
     if not input_url:
         raise HTTPException(status_code=400, detail="URL की जरूरत है")
     
-    # RapidAPI RemoveBanana एंडपॉइंट
-    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark"
+    # फिक्स्ड रैपिड-एपीआई एंडपॉइंट यूआरएल (जो 404 को बाईपास करेगा)
+    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark/"
     
     payload = {
         "image": input_url
@@ -43,15 +41,18 @@ async def remove_gemini_watermark(data: MediaRequest):
     try:
         response = requests.post(api_url, data=payload, headers=headers, timeout=25)
         
+        # अगर ट्रेलिंग स्लैश से भी न मिले तो बिना स्लैश वाला बेस ट्राई करना
+        if response.status_code == 404:
+            api_url_alt = "https://removebanana.p.rapidapi.com/api/remove-watermark"
+            response = requests.post(api_url_alt, data=payload, headers=headers, timeout=25)
+
         if response.status_code == 200:
             res_data = response.json()
-            # API जिस भी नाम से लिंक वापस करे (converted_url, url, या download_url) उसे निकालना
             final_url = res_data.get("converted_url") or res_data.get("url") or res_data.get("download_url")
             
             if final_url:
                 return {"status": "success", "download_url": final_url}
             else:
-                # बैकअप: अगर लिंक न मिले तो ओरिजिनल ही भेज देना
                 return {"status": "success", "download_url": input_url}
                 
         raise HTTPException(status_code=response.status_code, detail="वाटरमार्क हटाने वाली एपीआई से रिस्पांस नहीं मिला।")
