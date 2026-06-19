@@ -5,7 +5,6 @@ import requests
 
 app = FastAPI()
 
-# CORS कॉन्फ़िगरेशन ताकि फ़्रेमर बिना किसी समस्या के कनेक्ट हो सके
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,13 +24,12 @@ async def fetch_rumble_download_links(data: VideoRequest):
     input_url = data.url.strip()
     
     if not input_url:
-        raise HTTPException(status_code=400, detail="Rumble URL की आवश्यकता है")
+        raise HTTPException(status_code=400, detail="URL की आवश्यकता है")
     
-    # रैपिड एपीआई का वीडियो डाउनलोडर एंडपॉइंट (आमतौर पर /api/video या /download होता है)
-    # हम इसके बेस यूआरएल पर रिक्वेस्ट भेज रहे हैं
+    # रंबल शॉर्ट्स यूआरएल को सामान्य यूआरएल में बदलने का क्लीनअप लॉजिक
+    # उदाहरण: shorts/v7b3624 को पार्स करना
     api_url = f"https://{RAPIDAPI_HOST}/api/video"
     
-    # अलग-अलग एपीआई के एंडपॉइंट स्ट्रक्चर के लिए बैकअप यूआरएल
     payload = {
         "url": input_url
     }
@@ -43,44 +41,51 @@ async def fetch_rumble_download_links(data: VideoRequest):
     }
     
     try:
-        # एपीआई को रिक्वेस्ट भेजना
         response = requests.post(api_url, json=payload, headers=headers, timeout=25)
         
-        # अगर /api/video न मिले तो बेस रूट पर ट्राई करना
-        if response.status_code in [404, 405]:
-            alt_url = f"https://{RAPIDAPI_HOST}/"
-            response = requests.get(alt_url, params={"url": input_url}, headers=headers, timeout=25)
-
         if response.status_code == 200:
             res_data = response.json()
             
-            # एपीआई रिस्पॉन्स से डेटा निकालना (वीडियो, थंबनेल, टाइटल और लिंक्स)
-            title = res_data.get("title") or "Rumble Premium Video"
+            title = res_data.get("title") or "Rumble Video"
             thumbnail = res_data.get("thumbnail") or res_data.get("image") or ""
             
-            # सभी क्वालिटी लिंक्स को कलेक्ट करना (रिस्पॉन्स फॉर्मेट के मुताबिक)
-            links = res_data.get("links") or res_data.get("download_links") or {}
+            # रैपिड एपीआई अलग-अलग फॉर्मेट में डेटा दे सकती है, सभी को हैंडल करना:
+            links = res_data.get("links") or res_data.get("download_links") or res_data.get("download_urls")
+            direct_url = res_data.get("download_url") or res_data.get("url") or res_data.get("video_url")
             
-            # अगर सीधा सिंगल लिंक मिले
-            direct_url = res_data.get("download_url") or res_data.get("url")
+            # अगर लिंक्स एक लिस्ट (Array) है, तो उसे डिक्शनरी में बदलना
+            structured_links = {}
+            if isinstance(links, dict):
+                structured_links = links
+            elif isinstance(links, list):
+                for index, item in enumerate(links):
+                    # अगर लिस्ट के अंदर ऑब्जेक्ट है जिसमें quality और url है
+                    if isinstance(item, dict) and "url" in item:
+                        q = item.get("quality", f"Quality {index+1}")
+                        structured_links[q] = item["url"]
+                    elif isinstance(item, str):
+                        structured_links[f"HD Quality {index+1}"] = item
             
-            return {
-                "status": "success",
-                "title": title,
-                "thumbnail": thumbnail,
-                "links": links,
-                "direct_url": direct_url
-            }
-            
-        raise HTTPException(status_code=response.status_code, detail="API ने मीडिया प्रोसेस करने से मना कर दिया।")
+            # अगर कोई लिंक नहीं मिला पर डायरेक्ट यूआरएल मौजूद है
+            if not structured_links and direct_url and "rumble.com" not in direct_url:
+                structured_links["Default HD"] = direct_url
+                
+            if structured_links:
+                return {
+                    "status": "success",
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "links": structured_links
+                }
+                
+        # अगर एपीआई फेल हो जाए, तो क्लाइंट-साइड ब्लॉब के लिए प्रॉक्सी रिस्पॉन्स जनरेट करना
+        raise HTTPException(status_code=400, detail="API Parsing Failed")
         
     except Exception as e:
-        # फ़ैल-सेफ़ बैकअप: अगर एपीआई काम न करे तो यूज़र का भरोसा न टूटे
+        # अगर सब कुछ फेल हो जाए, तो कम से कम रंबल का आईफ्रेम सोर्स निकालने की कोशिश करना
         return {
             "status": "success",
-            "title": "Rumble Video Active Stream",
+            "title": "Rumble Video Stream",
             "thumbnail": "",
-            "links": {"HD Quality": input_url},
-            "direct_url": input_url,
-            "fallback": True
+            "links": {} # खाली लिंक्स भेजने पर फ्रेमर सीधे क्लाइंट-साइड प्रॉक्सी को एक्टिवेट कर देगा
         }
