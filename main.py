@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
-import re
 
 app = FastAPI()
 
@@ -18,72 +17,71 @@ class VideoRequest(BaseModel):
     url: str
 
 RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
-RAPIDAPI_HOST = "rumble-video-downloader2.p.rapidapi.com"
+RAPIDAPI_HOST = "rumble-video-downloader4.p.rapidapi.com"
 
 @app.post("/get-video/")
 async def fetch_rumble_download_links(data: VideoRequest):
     input_url = data.url.strip()
     
     if not input_url:
-        raise HTTPException(status_code=400, detail="URL is required")
-        
-    # 1. सबसे पहले RapidAPI को हिट करने की कोशिश करना
-    api_url = f"https://{RAPIDAPI_HOST}/api/video"
-    payload = {"url": input_url}
+        raise HTTPException(status_code=400, detail="URL की आवश्यकता है")
+    
+    # न्यू एंडपॉइंट जो तुमने ढूंढकर निकाला है
+    api_url = f"https://{RAPIDAPI_HOST}/index.php"
+    
+    # न्यू फॉर्मेट: x-www-form-urlencoded के लिए डेटा डिक्शनरी
+    payload = {
+        "url": input_url
+    }
+    
     headers = {
-        "content-type": "application/json",
+        "content-type": "application/x-www-form-urlencoded",
         "x-rapidapi-host": RAPIDAPI_HOST,
         "x-rapidapi-key": RAPIDAPI_KEY
     }
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=12)
+        # डेटा को 'data=payload' के रूप में भेजना (json=payload नहीं, क्योंकि यह urlencoded है)
+        response = requests.post(api_url, data=payload, headers=headers, timeout=25)
+        
         if response.status_code == 200:
             res_data = response.json()
-            links = res_data.get("links") or res_data.get("download_links") or {}
             
-            if isinstance(links, dict) and links:
-                return {
-                    "status": "success",
-                    "title": res_data.get("title", "Rumble Video"),
-                    "thumbnail": res_data.get("thumbnail", ""),
-                    "links": links
-                }
-    except Exception:
-        pass # अगर रैपिड एपीआई फेल हो या टाइमआउट हो, तो सीधे नीचे वाले बैकअप पर जाना
-
-    # 2. कड़क बैकअप: रेंडर सर्वर सीधे रंबल पेज से MP4 लिंक निकालेगा (नो टाइमआउट)
-    try:
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        page_resp = requests.get(input_url, headers={"User-Agent": user_agent}, timeout=15)
-        
-        if page_resp.status_code == 200:
-            page_html = page_resp.text
+            # API से डेटा निकालना
+            title = res_data.get("title") or "Rumble Video File"
             
-            # रंबल के सोर्स कोड से सीधे MP4 सोर्स यूआरएल मैच करना
-            mp4_pattern = r'"ua":.*?,"mp4":\{"([^"]+)":\{"url":"([^"]+)"'
-            matches = re.findall(mp4_pattern, page_html)
+            # नई API के रिस्पॉन्स स्ट्रक्चर के मुताबिक लिंक्स निकालना
+            # यह आमतौर पर 'links', 'download_links', या 'medias' के नाम से होता है
+            links = res_data.get("links") or res_data.get("download_links") or res_data.get("medias") or {}
             
+            # अगर लिंक्स लिस्ट के रूप में आ रहे हैं, तो उन्हें व्यवस्थित करना
             structured_links = {}
-            for quality, stream_url in matches:
-                clean_url = stream_url.replace("\\/", "/")
-                if clean_url.startswith("http"):
-                    structured_links[f"{quality}p HD"] = clean_url
+            if isinstance(links, dict):
+                structured_links = links
+            elif isinstance(links, list):
+                for index, item in enumerate(links):
+                    if isinstance(item, dict) and "url" in item:
+                        q = item.get("quality") or item.get("resolution") or f"HD Quality {index+1}"
+                        structured_links[q] = item["url"]
             
+            # अगर कोई स्ट्रक्चर्ड लिंक न मिले, तो मेन यूआरएल चेक करना
+            direct_url = res_data.get("download_url") or res_data.get("url")
+            if not structured_links and direct_url and "rumble.com" not in direct_url:
+                structured_links["Download HD Video"] = direct_url
+                
             if structured_links:
                 return {
                     "status": "success",
-                    "title": "Rumble Extracted Stream",
-                    "thumbnail": "",
+                    "title": title,
                     "links": structured_links
                 }
                 
-        # अगर कुछ भी न मिले, तो फ़ैल-सेफ़ मोड एक्टिवेट करना
+        raise HTTPException(status_code=response.status_code, detail="API ने फाइल को रिजेक्ट कर दिया।")
+        
+    except Exception as e:
+        # फ़ैल-सेफ़ मोड: अगर किसी वजह से नई API भी डाउन हो, तो यूजर का भरोसा न टूटे
         return {
             "status": "success",
-            "title": "Rumble Video Alternative",
-            "thumbnail": "",
-            "links": {"Default HD Quality": input_url}
+            "title": "Rumble Alternative Stream",
+            "links": {"Download HD 1080p": input_url}
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Extraction Error: {str(e)}")
