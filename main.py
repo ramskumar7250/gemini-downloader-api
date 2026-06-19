@@ -13,47 +13,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class MediaRequest(BaseModel):
-    url: str
+class AIChatRequest(BaseModel):
+    provider: str  # User select karega: openai, anthropic, ya gemini
+    model: str     # User select karega model id
+    prompt: str    # User ka sawal
 
 RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
 
-@app.post("/get-video/")
-async def remove_gemini_watermark(data: MediaRequest):
-    input_url = data.url.strip()
+@app.post("/get-video/") # Endpoint purana hi rakh rahe hain taaki Framer me dikkat na ho
+async def route_ai_chat(data: AIChatRequest):
+    provider = data.provider.strip().lower()
+    model = data.model.strip().lower()
+    prompt = data.prompt.strip()
     
-    if not input_url:
-        raise HTTPException(status_code=400, detail="URL ki jarurat hai")
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt ki jarurat hai")
     
-    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark"
+    # AI Router API ka official endpoint
+    api_url = "https://ai-router-api.p.rapidapi.com/chat"
     
-    # RapidAPI ke naye standard ke mutabik data dictionary format
+    # Strict API format jaisa tumne details me bheja tha
     payload = {
-        "image": input_url
+        "provider": provider,
+        "model": model,
+        "messages": [
+            { "role": "user", "content": prompt }
+        ]
     }
     
     headers = {
-        "content-type": "application/x-www-form-urlencoded",
-        "x-rapidapi-host": "removebanana.p.rapidapi.com",
+        "content-type": "application/json",
+        "x-rapidapi-host": "ai-router-api.p.rapidapi.com",
         "x-rapidapi-key": RAPIDAPI_KEY
     }
     
     try:
-        # Pura strict request form-data ke roop me bhejna
-        response = requests.post(api_url, data=payload, headers=headers, timeout=25)
+        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
         
         if response.status_code == 200:
             res_data = response.json()
-            # Sabhi possible keys ko check karna jo API bhej sakti hai
-            final_url = res_data.get("converted_url") or res_data.get("url") or res_data.get("download_url") or res_data.get("data", {}).get("url")
+            # API ke consistent format se text content nikalna
+            ai_response_text = res_data.get("content")
             
-            if final_url:
-                return {"status": "success", "download_url": final_url}
+            if ai_response_text:
+                return {"status": "success", "ai_response": ai_response_text}
             else:
-                return {"status": "success", "download_url": input_url, "info": "Fallback triggered"}
-        
-        # Agar fir bhi 400 ya koi aur error aaye to handle karna
-        raise HTTPException(status_code=response.status_code, detail=f"API Error: {response.text}")
+                return {"status": "error", "detail": "API se content nahi mil paya."}
                 
+        raise HTTPException(status_code=response.status_code, detail=f"AI Router Error: {response.text}")
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server Connection Error: {str(e)}")
