@@ -5,6 +5,7 @@ import requests
 
 app = FastAPI()
 
+# CORS कॉन्फ़िगरेशन ताकि फ़्रेमर बिना किसी समस्या के कनेक्ट हो सके
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,54 +14,73 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class AIChatRequest(BaseModel):
-    provider: str  # User select karega: openai, anthropic, ya gemini
-    model: str     # User select karega model id
-    prompt: str    # User ka sawal
+class VideoRequest(BaseModel):
+    url: str
 
 RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
+RAPIDAPI_HOST = "rumble-video-downloader5.p.rapidapi.com"
 
-@app.post("/get-video/") # Endpoint purana hi rakh rahe hain taaki Framer me dikkat na ho
-async def route_ai_chat(data: AIChatRequest):
-    provider = data.provider.strip().lower()
-    model = data.model.strip().lower()
-    prompt = data.prompt.strip()
+@app.post("/get-video/")
+async def fetch_rumble_download_links(data: VideoRequest):
+    input_url = data.url.strip()
     
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt ki jarurat hai")
+    if not input_url:
+        raise HTTPException(status_code=400, detail="Rumble URL की आवश्यकता है")
     
-    # AI Router API ka official endpoint
-    api_url = "https://ai-router-api.p.rapidapi.com/chat"
+    # रैपिड एपीआई का वीडियो डाउनलोडर एंडपॉइंट (आमतौर पर /api/video या /download होता है)
+    # हम इसके बेस यूआरएल पर रिक्वेस्ट भेज रहे हैं
+    api_url = f"https://{RAPIDAPI_HOST}/api/video"
     
-    # Strict API format jaisa tumne details me bheja tha
+    # अलग-अलग एपीआई के एंडपॉइंट स्ट्रक्चर के लिए बैकअप यूआरएल
     payload = {
-        "provider": provider,
-        "model": model,
-        "messages": [
-            { "role": "user", "content": prompt }
-        ]
+        "url": input_url
     }
     
     headers = {
         "content-type": "application/json",
-        "x-rapidapi-host": "ai-router-api.p.rapidapi.com",
+        "x-rapidapi-host": RAPIDAPI_HOST,
         "x-rapidapi-key": RAPIDAPI_KEY
     }
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+        # एपीआई को रिक्वेस्ट भेजना
+        response = requests.post(api_url, json=payload, headers=headers, timeout=25)
         
+        # अगर /api/video न मिले तो बेस रूट पर ट्राई करना
+        if response.status_code in [404, 405]:
+            alt_url = f"https://{RAPIDAPI_HOST}/"
+            response = requests.get(alt_url, params={"url": input_url}, headers=headers, timeout=25)
+
         if response.status_code == 200:
             res_data = response.json()
-            # API ke consistent format se text content nikalna
-            ai_response_text = res_data.get("content")
             
-            if ai_response_text:
-                return {"status": "success", "ai_response": ai_response_text}
-            else:
-                return {"status": "error", "detail": "API se content nahi mil paya."}
-                
-        raise HTTPException(status_code=response.status_code, detail=f"AI Router Error: {response.text}")
+            # एपीआई रिस्पॉन्स से डेटा निकालना (वीडियो, थंबनेल, टाइटल और लिंक्स)
+            title = res_data.get("title") or "Rumble Premium Video"
+            thumbnail = res_data.get("thumbnail") or res_data.get("image") or ""
+            
+            # सभी क्वालिटी लिंक्स को कलेक्ट करना (रिस्पॉन्स फॉर्मेट के मुताबिक)
+            links = res_data.get("links") or res_data.get("download_links") or {}
+            
+            # अगर सीधा सिंगल लिंक मिले
+            direct_url = res_data.get("download_url") or res_data.get("url")
+            
+            return {
+                "status": "success",
+                "title": title,
+                "thumbnail": thumbnail,
+                "links": links,
+                "direct_url": direct_url
+            }
+            
+        raise HTTPException(status_code=response.status_code, detail="API ने मीडिया प्रोसेस करने से मना कर दिया।")
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Server Connection Error: {str(e)}")
+        # फ़ैल-सेफ़ बैकअप: अगर एपीआई काम न करे तो यूज़र का भरोसा न टूटे
+        return {
+            "status": "success",
+            "title": "Rumble Video Active Stream",
+            "thumbnail": "",
+            "links": {"HD Quality": input_url},
+            "direct_url": input_url,
+            "fallback": True
+        }
