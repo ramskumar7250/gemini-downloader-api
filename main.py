@@ -23,11 +23,11 @@ async def remove_gemini_watermark(data: MediaRequest):
     input_url = data.url.strip()
     
     if not input_url:
-        raise HTTPException(status_code=400, detail="URL की जरूरत है")
+        raise HTTPException(status_code=400, detail="URL ki jarurat hai")
     
-    # फिक्स्ड रैपिड-एपीआई एंडपॉइंट यूआरएल (जो 404 को बाईपास करेगा)
-    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark/"
+    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark"
     
+    # RapidAPI ke naye standard ke mutabik data dictionary format
     payload = {
         "image": input_url
     }
@@ -39,23 +39,21 @@ async def remove_gemini_watermark(data: MediaRequest):
     }
     
     try:
+        # Pura strict request form-data ke roop me bhejna
         response = requests.post(api_url, data=payload, headers=headers, timeout=25)
         
-        # अगर ट्रेलिंग स्लैश से भी न मिले तो बिना स्लैश वाला बेस ट्राई करना
-        if response.status_code == 404:
-            api_url_alt = "https://removebanana.p.rapidapi.com/api/remove-watermark"
-            response = requests.post(api_url_alt, data=payload, headers=headers, timeout=25)
-
         if response.status_code == 200:
             res_data = response.json()
-            final_url = res_data.get("converted_url") or res_data.get("url") or res_data.get("download_url")
+            # Sabhi possible keys ko check karna jo API bhej sakti hai
+            final_url = res_data.get("converted_url") or res_data.get("url") or res_data.get("download_url") or res_data.get("data", {}).get("url")
             
             if final_url:
                 return {"status": "success", "download_url": final_url}
             else:
-                return {"status": "success", "download_url": input_url}
-                
-        raise HTTPException(status_code=response.status_code, detail="वाटरमार्क हटाने वाली एपीआई से रिस्पांस नहीं मिला।")
+                return {"status": "success", "download_url": input_url, "info": "Fallback triggered"}
         
+        # Agar fir bhi 400 ya koi aur error aaye to handle karna
+        raise HTTPException(status_code=response.status_code, detail=f"API Error: {response.text}")
+                
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"API Connection Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server Connection Error: {str(e)}")
