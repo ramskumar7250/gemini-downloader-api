@@ -2,11 +2,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
-import re
-import json
 
 app = FastAPI()
 
+# CORS इनेबल करना ताकि तुम्हारी Framer वेबसाइट बिना किसी एरर के बात कर सके
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,78 +14,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class VideoRequest(BaseModel):
+class MediaRequest(BaseModel):
     url: str
 
+# तुम्हारी लाइव RapidAPI Key सीधे कोड में फिट कर दी है
+RAPIDAPI_KEY = "a40796553cmsh26d51d82ef613e0p1cfa9ejsn34c5c0c6be3d"
+
 @app.post("/get-video/")
-async def get_rumble_video(data: VideoRequest):
+async def remove_gemini_watermark(data: MediaRequest):
     input_url = data.url.strip()
     
     if not input_url:
         raise HTTPException(status_code=400, detail="URL की जरूरत है")
     
-    if "rumble.com" not in input_url:
-        raise HTTPException(status_code=400, detail="Error: केवल वैध Rumble वीडियो लिंक ही सपोर्टेड है।")
+    # RapidAPI RemoveBanana एंडपॉइंट
+    api_url = "https://removebanana.p.rapidapi.com/api/remove-watermark"
+    
+    payload = {
+        "image": input_url
+    }
+    
+    headers = {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-rapidapi-host": "removebanana.p.rapidapi.com",
+        "x-rapidapi-key": RAPIDAPI_KEY
+    }
     
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-        }
+        response = requests.post(api_url, data=payload, headers=headers, timeout=25)
         
-        # रंबल शॉर्ट्स लिंक को नॉर्मल या एम्बेड फ़ॉर्मेट में बदलने का लॉजिक
-        if "/shorts/" in input_url:
-            # शॉर्ट्स आईडी निकालना
-            shorts_id = input_url.split("/shorts/")[-1].split("?")[0].split("/")[0]
-            embed_url = f"https://rumble.com/embed/{shorts_id}/"
-        else:
-            embed_url = None
-
-        # अगर शॉर्ट्स नहीं है, तो पहले मेन पेज लोड करके एम्बेड यूआरएल ढूँढेंगे
-        if not embed_url:
-            response = requests.get(input_url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Rumble सर्वर से पेज लोड नहीं हो सका।")
+        if response.status_code == 200:
+            res_data = response.json()
+            # API जिस भी नाम से लिंक वापस करे (converted_url, url, या download_url) उसे निकालना
+            final_url = res_data.get("converted_url") or res_data.get("url") or res_data.get("download_url")
             
-            page_source = response.text
-            embed_match = re.search(r'"embedUrl"\s*:\s*"([^"]+)"', page_source)
-            if not embed_match:
-                embed_match = re.search(r'https://rumble\.com/embed/[a-zA-Z0-9_-]+', page_source)
-            
-            if embed_match:
-                embed_url = embed_match.group(1) if hasattr(embed_match, 'group') and len(embed_match.groups()) > 0 else embed_match.group(0)
+            if final_url:
+                return {"status": "success", "download_url": final_url}
             else:
-                # सीधे वीडियो फ़ाइल खोजने का आख़िरी प्रयास
-                backup_match = re.search(r'https://[^\s"\']+\.mp4[^\s"\']*', page_source)
-                if backup_match:
-                    return {"status": "success", "download_url": backup_match.group(0)}
-                raise HTTPException(status_code=400, detail="Rumble एम्बेड लिंक नहीं मिल सका।")
-
-        if embed_url and not embed_url.startswith("http"):
-            embed_url = "https:" + embed_url
-
-        # अब सीधे एम्बेड पेज को हिट करके असली HD/SD वीडियो फ़ाइलें निकालना (शॉर्ट्स और लॉन्ग दोनों के लिए)
-        embed_res = requests.get(embed_url, headers=headers, timeout=10)
-        if embed_res.status_code == 200:
-            # एम्बेड कोड में छुपा हुआ "ua" (User Agent/Media Video JSON) ब्लॉक निकालना
-            video_data_match = re.search(r'"ua"\s*:\s*({.*?})', embed_res.text)
-            if video_data_match:
-                video_json = json.loads(video_data_match.group(1))
+                # बैकअप: अगर लिंक न मिले तो ओरिजिनल ही भेज देना
+                return {"status": "success", "download_url": input_url}
                 
-                for q in ['mp4', 'webm']:
-                    if q in video_json and len(video_json[q]) > 0:
-                        resolutions = list(video_json[q].keys())
-                        if resolutions:
-                            # सबसे हाई रेजोल्यूशन का असली वीडियो यूआरएल उठाना
-                            best_res = resolutions[-1]
-                            final_video_url = video_json[q][best_res]['url']
-                            return {"status": "success", "download_url": final_video_url}
-
-            # सेकेंडरी बैकअप तरीका एम्बेड पेज के अंदर सीधे mp4 ढूँढना
-            direct_mp4 = re.search(r'https://[^\s"\']+\.mp4[^\s"\']*', embed_res.text)
-            if direct_mp4:
-                return {"status": "success", "download_url": direct_mp4.group(0)}
-                
-        raise HTTPException(status_code=400, detail="Rumble वीडियो का डायरेक्ट डाउनलोड लिंक नहीं मिल सका।")
+        raise HTTPException(status_code=response.status_code, detail="वाटरमार्क हटाने वाली एपीआई से रिस्पांस नहीं मिला।")
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Rumble सर्वर से पेज लोड नहीं हो सका।")
+        raise HTTPException(status_code=500, detail=f"API Connection Error: {str(e)}")
