@@ -2,12 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
-import os
 import re
-import urllib.parse
+import json
 
 app = FastAPI()
 
+# CORS इनेबल करना ताकि आपकी Framer वेबसाइट बिना किसी रुकावट के बात कर सके
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,85 +19,64 @@ app.add_middleware(
 class VideoRequest(BaseModel):
     url: str
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 @app.post("/get-video/")
-async def get_video_link(data: VideoRequest):
+async def get_rumble_video(data: VideoRequest):
     input_url = data.url.strip()
     
     if not input_url:
         raise HTTPException(status_code=400, detail="URL की जरूरत है")
     
-    if "gemini.google.com/share" not in input_url:
-        raise HTTPException(status_code=400, detail="यह वैध जेमिनी शेयर लिंक नहीं है।")
-        
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="सर्वर एरर: Render पर API Key सेट नहीं की गई है।")
+    if "rumble.com" not in input_url:
+        raise HTTPException(status_code=400, detail="Error: केवल वैध Rumble वीडियो लिंक ही सपोर्टेड है।")
     
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
         }
-        page_res = requests.get(input_url, headers=headers, timeout=12)
-        if page_res.status_code != 200:
-            raise HTTPException(status_code=500, detail="गूगल सर्ver से पेज लोड नहीं हो सका।")
-            
-        page_text = page_res.text
+        response = requests.get(input_url, headers=headers, timeout=10)
         
-        # बैकएंड हैक: पहले पूरे पेज में से WIZ_global_data ब्लॉक को अलग करना ताकि एआई सीधे सही जगह ढूंढे
-        wiz_data_match = re.search(r'window\.WIZ_global_data\s*=\s*(\{.*?\});', page_text)
-        context_data = wiz_data_match.group(1) if wiz_data_match else page_text[:40000]
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Rumble सर्वर से पेज लोड नहीं हो सका।")
+            
+        page_source = response.text
+        
+        # रंबल के अंदर छिपे हुए असली MP4 वीडियो ऑब्जेक्ट को ढूंढना
+        embed_match = re.search(r'"embedUrl"\s*:\s*"([^"]+)"', page_source)
+        
+        if not embed_match:
+            # दूसरा पैटर्न: अगर पहले वाले से न मिले
+            embed_match = re.search(r'https://rumble\.com/embed/[a-zA-Z0-9_-]+', page_source)
+            
+        if embed_match:
+            embed_url = embed_match.group(1) if hasattr(embed_match, 'group') and len(embed_match.groups()) > 0 else embed_match.group(0)
+            if not embed_url.startswith("http"):
+                embed_url = "https:" + embed_url
+                
+            # एम्बेड पेज से असली वीडियो की HD/SD फाइलें निकालना
+            embed_res = requests.get(embed_url, headers=headers, timeout=10)
+            if embed_res.status_code == 200:
+                # वीडियो फाइलों का JSON ब्लॉक खोजना
+                video_data_match = re.search(r'"ua"\s*:\s*({.*?})', embed_res.text)
+                if video_data_match:
+                    video_json = json.loads(video_data_match.group(1))
+                    
+                    # सबसे बेस्ट क्वालिटी (mp4) का लिंक चुनना
+                    available_qualities = ['mp4', 'webm']
+                    for q in available_qualities:
+                        if q in video_json and len(video_json[q]) > 0:
+                            # अलग-अलग रेजोल्यूशन (जैसे 720p, 1080p) में से सबसे पहला (High Quality) चुनना
+                            resolutions = list(video_json[q].keys())
+                            if resolutions:
+                                best_res = resolutions[-1] # आमतौर पर आखिरी वाला सबसे हाई होता है
+                                final_video_url = video_json[q][best_res]['url']
+                                return {"status": "success", "download_url": final_video_url}
 
-        # जेमिनी एआई मॉडल से सीधे कड़े निर्देशों के साथ डायरेक्ट यूआरएल मांगना
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        
-        prompt = f"""
-        You are a raw text extraction tool. Your job is to strictly find and extract the direct high-quality video or image URL located inside this Google data structure. Look specifically for fields containing strings with "googlevideo.com" or "googleusercontent.com".
-        
-        CRITICAL RULES:
-        1. Return ONLY the raw URL string (e.g., https://...).
-        2. Do NOT wrap it in markdown block codes like ```url.
-        3. Do NOT provide any explanation, text, or warnings.
-        4. If it contains encoded entities like '\\u003d', decode them to '='.
-        
-        Data to scan:
-        {context_data[:35000]}
-        """
-        
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
-        
-        api_res = requests.post(api_url, json=payload, timeout=10)
-        
-        if api_res.status_code == 200:
-            result_json = api_res.json()
-            extracted_text = result_json['candidates'][0]['content']['parts'][0]['text'].strip()
+        # बैकअप Regex तरीका
+        backup_match = re.search(r'https://[^\s"\']+\.mp4[^\s"\']*', page_source)
+        if backup_match:
+            return {"status": "success", "download_url": backup_match.group(0)}
             
-            # क्लीनिंग प्रोसेस
-            clean_url = extracted_text.replace('`', '').replace('\\\n', '').strip()
-            if "http" in clean_url:
-                final_url = clean_url.split('\n')[0].split('"')[0].split("'")[0]
-                return {"status": "success", "download_url": final_url}
-        
-        # सुपर-इम्प्रूव्ड अल्टीमेट बैकअप Regex: अगर एआई कन्फ्यूज हो जाए, तो कोड खुद निकालेगा
-        regex_patterns = [
-            r'(https://[^\s"\',\\]+googlevideo\.com/[^\s"\',\\]*)',
-            r'(https://[^\s"\',\\]+googleusercontent\.com/[^\s"\',\\]*)'
-        ]
-        
-        for pattern in regex_patterns:
-            matches = re.findall(pattern, page_text)
-            for match in matches:
-                decoded_url = match.encode().decode('unicode-escape').replace('\\', '')
-                decoded_url = decoded_url.split('"')[0].split("'")[0].split(']')[0]
-                if "avatar" not in decoded_url and "lh3.googleusercontent" not in decoded_url:
-                    return {"status": "success", "download_url": decoded_url}
-            
-        raise HTTPException(status_code=400, detail="बिना वॉटरमार्क वाली असली फ़ाइल का लिंक नहीं मिल सका।")
+        raise HTTPException(status_code=400, detail="Rumble वीडियो का डायरेक्ट डाउनलोड लिंक नहीं मिल सका।")
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"सर्वर एरर: {str(e)}")
