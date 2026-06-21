@@ -15,46 +15,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. आपकी सही प्राइवेट की को बिल्कुल सुरक्षित तरीके से बिना किसी न्यूलाइन एरर के लॉक कर दिया है
-ACTUAL_PRIVATE_KEY = r"""-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCKBgQDWKNCIP/S
-kdxhrY2PHrUq8uApUAhQRWnYG
-/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3w
-RbR4u0Acg7FP3feH8lvmYny5wu/C
-dJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB
-/yMgLsx0Noys+qVtQDskLFAJSM3a9L
-kxAZf88kQwKBgHR5GeORDKOwPdokdF7J
-hdMUGxiUOc0RevtphQIPGLYKkX4ikfS3
-G9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT
-/PuNuZdb+a0VUir93TSOzcrKaR32KzWE
-5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A
-0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO
-u8EGXsFcWinni0wZVqk8RnSv+zqvYytL
-746OLfDjceRi76i2FhFOVVA+SnLD1PnL
-s6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48R
-U6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl
-ji3PekU5Oz0ePF5bSY0lLT0EpWRZ223l
-L29qnisCgYEAoHfP6+JreU3bWlCqR7Qz
-twu0fy70NKo1TpMUfxZyK2ITAjwvTiQ
-/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98
-/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkx
-Dxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8
-xmwxw41gB865uSVp4s3py4o=
------END PRIVATE KEY-----"""
-
-firebase_config = {
+# बिल्कुल साफ सुथरा डिक्शनरी फ़ॉर्मेट - बिना किसी स्ट्रिंग टूटने के झंझट के
+firebase_dict = {
     "type": "service_account",
     "project_id": "marva-8280e",
     "private_key_id": "d62c417a35e8a4b59e57fbbce13972be7bd66658",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDEmrnjLJOZAZcC\nP5z/RFbz7VDqK/brXj2jd5QzjyJmb8Nb2FbVWiMNi0uI6Bzvnk/YzZofvqiHmLme\nlqDmugB0vNiuQr3JAaZuF1V/K7FcJ14MPTO0ZJrtz1fnFA/qcNFDw7ViHUwSOnkO\nAcT6+65pkq4HNoxu2+dBmU0F0XldDSmcpxOk8aVJ8DYgS1Uui5DvZSRBozf6oumn\nzX03szJo3PaBD55RRVP74GXmAQksTPj9pkF7krBNNDTF0tp8hjm2WwzEuRBgyQZJ\n46FFLxIIl0r7aymblW5X9NLXhIBRp69bmirHSH4bE9vpH2TW19QDNJ5gUDLgAGTW\ng1zGFV5jAgMBAAECggEATsB5oFVtQ/c+kXCAx0GNIQVZCYwVyr8DqrSOAT8e9PBk\nzSfx1GFYNCctWQg8+wCrlDj7OScKY9JZ2/wTNIiiASDaHKdwVRFbpLKlFR0f3L2K\nLxXe3a4E3yhUWiQPogWR1XaR89yvaYfRkLpFuJFTEkfmfM4tX4Snc//fuepoFkyp\nB1oD9stKp/+jfbkE49s4XQcraxGC2F8E66JyIoOy9fBDxLutMpnnCfUYR1mmS7fc\nnyoGZioFbU+mow1L2z+y9nLnMF5pjc2On+r9zC/f2jI6+S7NrpN4gUkfxPRF7ppZ\nzk9JLFeorJdZ/PxGzm7+OFtHaqA5sQeLo5RV5kCZoQKBgQDrA+V9sK3w16hPd2m0\nUYCaj5+APzL1PlxpttxGx3ZUhLmzO2XTrml9j1myNpXa2q12kNvhqs7MbbDJxg8p\nAg9BaJWax2KwKl3TvHhz3LVLGWDqzuPYBkTQqaWg5kU15qC3izCthVWDAmBkBPCC\nRNy/FhAvM2AdYO56EtAyqBNLYQKBgQDWKNCIP/SkdxhrY2PHrUq8uApUAhQRWnYG\n/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3wRbR4u0Acg7FP3feH8lvmYny5wu/C\ndJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB/yMgLsx0Noys+qVtQDskLFAJSM3a9L\nkxAZf88kQwKBgHR5GeORDKOwPdokdF7JhdMUGxiUOc0RevtphQIPGLYKkX4ikfS3\nG9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT/PuNuZdb+a0VUir93TSOzcrKaR32KzWE\n5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO\nu8EGXsFcWinni0wZVqk8RnSv+zqvYytL746OLfDjceRi76i2FhFOVVA+SnLD1PnL\ns6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48RU6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl\nji3PekU5Oz0ePF5bSY0lLT0EpWRZ223lL29qnisCgYEAoHfP6+JreU3bWlCqR7Qz\ntwu0fy70NKo1TpMUfxZyK2ITAjwvTiQ/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98\n/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkxDxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8\nxmwxw41gB865uSVp4s3py4o=\n-----END PRIVATE KEY-----\n",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCKBgQDWKNCIP/S\nkdxhrY2PHrUq8uApUAhQRWnYG\n/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3w\nRbR4u0Acg7FP3feH8lvmYny5wu/C\ndJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB\n/yMgLsx0Noys+qVtQDskLFAJSM3a9L\nkxAZf88kQwKBgHR5GeORDKOwPdokdF7J\nhdMUGxiUOc0RevtphQIPGLYKkX4ikfS3\nG9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT\n/PuNuZdb+a0VUir93TSOzcrKaR32KzWE\n5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A\n0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO\nu8EGXsFcWinni0wZVqk8RnSv+zqvYytL\n746OLfDjceRi76i2FhFOVVA+SnLD1PnL\ns6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48R\nU6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl\nji3PekU5Oz0ePF5bSY0lLT0EpWRZ223l\nL29qnisCgYEAoHfP6+JreU3bWlCqR7Qz\ntwu0fy70NKo1TpMUfxZyK2ITAjwvTiQ\n/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98\n/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkx\nDxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8\nxmwxw41gB865uSVp4s3py4o=\n-----END PRIVATE KEY-----\n",
     "client_email": "firebase-adminsdk-fbsvc@marva-8280e.iam.gserviceaccount.com",
     "token_uri": "https://oauth2.googleapis.com/token"
 }
 
-# फायरबेस इनिशियलाइज़ेशन
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate(firebase_config)
+        # Certificate.from_json_dict का सीधा उपयोग
+        cred = credentials.Certificate(firebase_dict)
         firebase_admin.initialize_app(cred)
         print("Firebase successfully initialized!")
 except Exception as e:
