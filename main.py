@@ -17,27 +17,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. आपके फायरबेस की चाबी का असली डेटाबेस डिक्शनरी
-firebase_data = {
-    "type": "service_account",
-    "project_id": "marva-8280e",
-    "private_key_id": "d62c417a35e8a4b59e57fbbce13972be7bd66658",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCKBgQDWKNCIP/S\nkdxhrY2PHrUq8uApUAhQRWnYG\n/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3w\nRbR4u0Acg7FP3feH8lvmYny5wu/C\ndJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB\n/yMgLsx0Noys+qVtQDskLFAJSM3a9L\nkxAZf88kQwKBgHR5GeORDKOwPdokdF7J\nhdMUGxiUOc0RevtphQIPGLYKkX4ikfS3\nG9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT\n/PuNuZdb+a0VUir93TSOzcrKaR32KzWE\n5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A\n0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO\nu8EGXsFcWinni0wZVqk8RnSv+zqvYytL\n746OLfDjceRi76i2FhFOVVA+SnLD1PnL\ns6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48R\nU6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl\nji3PekU5Oz0ePF5bSY0lLT0EpWRZ223l\nL29qnisCgYEAoHfP6+JreU3bWlCqR7Qz\ntwu0fy70NKo1TpMUfxZyK2ITAjwvTiQ\n/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98\n/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkx\nDxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8\nxmwxw41gB865uSVp4s3py4o=\n-----END PRIVATE KEY-----\n",
-    "client_email": "firebase-adminsdk-fbsvc@marva-8280e.iam.gserviceaccount.com",
-    "token_uri": "https://oauth2.googleapis.com/token"
-}
+# रेंडर की सेटिंग से पूरी JSON स्ट्रिंग उठाना
+firebase_json_env = os.environ.get("FIREBASE_JSON_DATA", "")
 
-# 2. रेंडर के सर्वर पर टेंपरेरी JSON फाइल बनाकर क्रेडेंशियल्स डंप करना
-json_path = "/tmp/firebase_credentials.json"
-with open(json_path, "w") as f:
-    json.dump(firebase_data, f)
-
-# 3. फाइल के जरिए इनिशियलाइजेशन (यह कभी फेल नहीं होता)
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate(json_path)
-        firebase_admin.initialize_app(cred)
-        print("Firebase successfully initialized via absolute JSON file!")
+        if firebase_json_env:
+            # स्ट्रिंग को डिक्शनरी में लोड करना और इनिशियलाइज़ करना
+            firebase_config = json.loads(firebase_json_env)
+            cred = credentials.Certificate(firebase_config)
+            firebase_admin.initialize_app(cred)
+            print("Firebase successfully initialized from Environment JSON!")
+        else:
+            raise ValueError("FIREBASE_JSON_DATA environment variable is missing!")
 except Exception as e:
     print(f"Firebase Init Critical Error: {str(e)}")
 
