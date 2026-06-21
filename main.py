@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# आपकी चाबी के हर टुकड़े को बिल्कुल अलग और साफ-साफ रख दिया है ताकि पार्सर कभी फेल न हो
+# आपकी सही फायरबेस क्रेडेंशियल्स डिक्शनरी
 firebase_config = {
     "type": "service_account",
     "project_id": "marva-8280e",
@@ -25,16 +25,17 @@ firebase_config = {
     "token_uri": "https://oauth2.googleapis.com/token"
 }
 
-# सिस्ठम को मजबूर करना कि वह ऐप को इनिशियलाइज़ करे ही करे
-if not firebase_admin._apps:
-    try:
+# क्रेडेंशियल्स को जबरदस्ती और सुरक्षित तरीके से लोड करना
+db = None
+try:
+    if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred)
-        print("Firebase successfully initialized!")
-    except Exception as e:
-        print(f"Firebase initialization error: {str(e)}")
-
-db = firestore.client()
+        print("✓ Firebase SDK initialized successfully!")
+    db = firestore.client()
+    print("✓ Firestore Client connected successfully!")
+except Exception as e:
+    print(f"❌ CRITICAL FIREBASE CONFIG ERROR: {str(e)}")
 
 class TrainRequest(BaseModel):
     bizName: str
@@ -61,6 +62,9 @@ async def train_ai_core(data: TrainRequest):
 
 @app.post("/link-whatsapp/")
 async def link_whatsapp_and_generate_key(data: LinkWhatsAppRequest):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database core is offline. Check credentials formatting.")
+        
     phone_clean = data.phone.strip().replace(" ", "").replace("-", "").replace("+", "")
     biz_name_clean = data.bizName.strip().upper().replace(" ", "")
     
@@ -86,6 +90,9 @@ async def link_whatsapp_and_generate_key(data: LinkWhatsAppRequest):
 
 @app.get("/get-dashboard/{uid}")
 async def get_dashboard_data(uid: str):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database core is offline.")
+        
     try:
         user_doc = db.collection("users").document(uid).get()
         if user_doc.exists:
@@ -97,6 +104,9 @@ async def get_dashboard_data(uid: str):
 
 @app.post("/toggle-takeover/")
 async def toggle_human_takeover(data: TakeoverRequest):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database core is offline.")
+        
     try:
         user_ref = db.collection("users").document(data.uid)
         user_ref.update({"human_takeover": data.takeover})
