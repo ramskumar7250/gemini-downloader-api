@@ -1,5 +1,4 @@
 fastapi
 uvicorn
-requests
 pydantic
 firebase-admin
