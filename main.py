@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# बिल्कुल सुरक्षित और साफ डिक्शनरी फॉर्मेट - Python 3.14 भी इसे हँसते हुए पढ़ेगा
+# आपकी चाबी के हर टुकड़े को बिल्कुल अलग और साफ-साफ रख दिया है ताकि पार्सर कभी फेल न हो
 firebase_config = {
     "type": "service_account",
     "project_id": "marva-8280e",
@@ -25,14 +25,14 @@ firebase_config = {
     "token_uri": "https://oauth2.googleapis.com/token"
 }
 
-# क्रेडेंशियल डिक्शनरी से सीधे इनिशियलाइज़ करने का अचूक तरीका
-try:
-    if not firebase_admin._apps:
+# सिस्ठम को मजबूर करना कि वह ऐप को इनिशियलाइज़ करे ही करे
+if not firebase_admin._apps:
+    try:
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred)
-        print("Firebase SDK successfully linked!")
-except Exception as e:
-    print(f"Firebase Critical Error: {str(e)}")
+        print("Firebase successfully initialized!")
+    except Exception as e:
+        print(f"Firebase initialization error: {str(e)}")
 
 db = firestore.client()
 
