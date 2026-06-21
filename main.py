@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import firebase_admin
 from firebase_admin import credentials, firestore
+import json
+import os
 import random
 
 app = FastAPI()
@@ -15,8 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# बिल्कुल साफ सुथरा डिक्शनरी फ़ॉर्मेट - बिना किसी स्ट्रिंग टूटने के झंझट के
-firebase_dict = {
+# 1. आपके फायरबेस की चाबी का असली डेटाबेस डिक्शनरी
+firebase_data = {
     "type": "service_account",
     "project_id": "marva-8280e",
     "private_key_id": "d62c417a35e8a4b59e57fbbce13972be7bd66658",
@@ -25,12 +27,17 @@ firebase_dict = {
     "token_uri": "https://oauth2.googleapis.com/token"
 }
 
+# 2. रेंडर के सर्वर पर टेंपरेरी JSON फाइल बनाकर क्रेडेंशियल्स डंप करना
+json_path = "/tmp/firebase_credentials.json"
+with open(json_path, "w") as f:
+    json.dump(firebase_data, f)
+
+# 3. फाइल के जरिए इनिशियलाइजेशन (यह कभी फेल नहीं होता)
 try:
     if not firebase_admin._apps:
-        # Certificate.from_json_dict का सीधा उपयोग
-        cred = credentials.Certificate(firebase_dict)
+        cred = credentials.Certificate(json_path)
         firebase_admin.initialize_app(cred)
-        print("Firebase successfully initialized!")
+        print("Firebase successfully initialized via absolute JSON file!")
 except Exception as e:
     print(f"Firebase Init Critical Error: {str(e)}")
 
