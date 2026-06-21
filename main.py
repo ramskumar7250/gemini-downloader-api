@@ -15,52 +15,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. चाबी को बिना किसी न्यूलाइन (\n) के एक सिंगल लाइन में रख दिया है, ताकि रेंडर इसे कभी रिजेक्ट न कर पाए
-RAW_KEY = (
-    "-----BEGIN PRIVATE KEY-----\n"
-    "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCKBgQDWKNCIP/S\n"
-    "kdxhrY2PHrUq8uApUAhQRWnYG\n"
-    "/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3w\n"
-    "RbR4u0Acg7FP3feH8lvmYny5wu/C\n"
-    "dJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB\n"
-    "/yMgLsx0Noys+qVtQDskLFAJSM3a9L\n"
-    "kxAZf88kQwKBgHR5GeORDKOwPdokdF7J\n"
-    "hdMUGxiUOc0RevtphQIPGLYKkX4ikfS3\n"
-    "G9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT\n"
-    "/PuNuZdb+a0VUir93TSOzcrKaR32KzWE\n"
-    "5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A\n"
-    "0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO\n"
-    "u8EGXsFcWinni0wZVqk8RnSv+zqvYytL\n"
-    "746OLfDjceRi76i2FhFOVVA+SnLD1PnL\n"
-    "s6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48R\n"
-    "U6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl\n"
-    "ji3PekU5Oz0ePF5bSY0lLT0EpWRZ223l\n"
-    "L29qnisCgYEAoHfP6+JreU3bWlCqR7Qz\n"
-    "twu0fy70NKo1TpMUfxZyK2ITAjwvTiQ\n"
-    "/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98\n"
-    "/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkx\n"
-    "Dxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8\n"
-    "xmwxw41gB865uSVp4s3py4o=\n"
-    "-----END PRIVATE KEY-----\n"
-)
-
+# बिल्कुल सुरक्षित और साफ डिक्शनरी फॉर्मेट - Python 3.14 भी इसे हँसते हुए पढ़ेगा
 firebase_config = {
     "type": "service_account",
     "project_id": "marva-8280e",
     "private_key_id": "d62c417a35e8a4b59e57fbbce13972be7bd66658",
-    "private_key": RAW_KEY,
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCKBgQDWKNCIP/S\nkdxhrY2PHrUq8uApUAhQRWnYG\n/iDFCOx2lXjzNaz4qD2jI/To6oUyhy22Te3w\nRbR4u0Acg7FP3feH8lvmYny5wu/C\ndJghlRBxP9R1+ZjUU789Zg1NLa8Jt0didB\n/yMgLsx0Noys+qVtQDskLFAJSM3a9L\nkxAZf88kQwKBgHR5GeORDKOwPdokdF7J\nhdMUGxiUOc0RevtphQIPGLYKkX4ikfS3\nG9D+mpWYN+yfNBju8gqFfLgUJOnbHuhT\n/PuNuZdb+a0VUir93TSOzcrKaR32KzWE\n5dYEPfHgLazo//33Hcjhq9+h7eOkDw6A\n0mZhqOO7sobc41PcvxJb+jQBAoGAOvDO\nu8EGXsFcWinni0wZVqk8RnSv+zqvYytL\n746OLfDjceRi76i2FhFOVVA+SnLD1PnL\ns6YrjlLSyUZBZZ7MgoDkZBrVAvcwr48R\nU6TH+rM7kSCZvE40Qvy0Snp5Qy5LGkCl\nji3PekU5Oz0ePF5bSY0lLT0EpWRZ223l\nL29qnisCgYEAoHfP6+JreU3bWlCqR7Qz\ntwu0fy70NKo1TpMUfxZyK2ITAjwvTiQ\n/nFHd+ZnGAwgzdJoj0XWcQkW9dOLFbg98\n/JJ/fMI7bJRgM0/XyCJG8B8J+GNlFYkx\nDxg2s4FZrUtfwGFAM1z0aQinJ/FLfsn8\nxmwxw41gB865uSVp4s3py4o=\n-----END PRIVATE KEY-----\n",
     "client_email": "firebase-adminsdk-fbsvc@marva-8280e.iam.gserviceaccount.com",
     "token_uri": "https://oauth2.googleapis.com/token"
 }
 
-# फायरबेस इनिशियलाइज़ेशन
+# क्रेडेंशियल डिक्शनरी से सीधे इनिशियलाइज़ करने का अचूक तरीका
 try:
     if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred)
-        print("Firebase successfully initialized!")
+        print("Firebase SDK successfully linked!")
 except Exception as e:
-    print(f"Firebase Init Critical Error: {str(e)}")
+    print(f"Firebase Critical Error: {str(e)}")
 
 db = firestore.client()
 
