@@ -17,23 +17,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# रेंडर की सेटिंग से पूरी JSON स्ट्रिंग उठाना
+# रेंडर की सेटिंग (Environment) से पूरी JSON स्ट्रिंग उठाना
 firebase_json_env = os.environ.get("FIREBASE_JSON_DATA", "")
 
 try:
     if not firebase_admin._apps:
         if firebase_json_env:
-            # स्ट्रिंग को डिक्शनरी में लोड करना और इनिशियलाइज़ करना
+            # स्ट्रिंग को डिक्शनरी में बदलकर लोड करना
             firebase_config = json.loads(firebase_json_env)
             cred = credentials.Certificate(firebase_config)
             firebase_admin.initialize_app(cred)
             print("Firebase successfully initialized from Environment JSON!")
         else:
-            raise ValueError("FIREBASE_JSON_DATA environment variable is missing!")
+            print("CRITICAL: FIREBASE_JSON_DATA variable is totally empty!")
 except Exception as e:
     print(f"Firebase Init Critical Error: {str(e)}")
 
-db = firestore.client()
+# डेटाबेस क्लाइंट को सुरक्षित रूप से शुरू करना
+try:
+    db = firestore.client()
+except Exception as e:
+    db = None
+    print(f"Firestore Client Connect Error: {str(e)}")
 
 class TrainRequest(BaseModel):
     bizName: str
@@ -60,6 +65,9 @@ async def train_ai_core(data: TrainRequest):
 
 @app.post("/link-whatsapp/")
 async def link_whatsapp_and_generate_key(data: LinkWhatsAppRequest):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database client is not initialized")
+        
     phone_clean = data.phone.strip().replace(" ", "").replace("-", "").replace("+", "")
     biz_name_clean = data.bizName.strip().upper().replace(" ", "")
     
@@ -85,6 +93,9 @@ async def link_whatsapp_and_generate_key(data: LinkWhatsAppRequest):
 
 @app.get("/get-dashboard/{uid}")
 async def get_dashboard_data(uid: str):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database client is not initialized")
+        
     try:
         user_doc = db.collection("users").document(uid).get()
         if user_doc.exists:
@@ -96,6 +107,9 @@ async def get_dashboard_data(uid: str):
 
 @app.post("/toggle-takeover/")
 async def toggle_human_takeover(data: TakeoverRequest):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database client is not initialized")
+        
     try:
         user_ref = db.collection("users").document(data.uid)
         user_ref.update({"human_takeover": data.takeover})
